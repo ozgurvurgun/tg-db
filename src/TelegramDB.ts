@@ -1,3 +1,6 @@
+import { readFile, writeFile, mkdir } from 'fs/promises';
+import { dirname } from 'path';
+import { existsSync } from 'fs';
 import { Telegraf, Context } from 'telegraf';
 import {
   TelegramDBConfig,
@@ -17,6 +20,13 @@ import {
 } from './utils';
 import { TableHandler } from './TableHandler';
 
+interface IndexFile {
+  messageIndex: [string, number][];
+  documents: Document[];
+  indexMessageId: number | null;
+  updatedAt: number;
+}
+
 /** Uses Telegram chat messages to store and retrieve data */
 export class TelegramDB {
   private bot: Telegraf;
@@ -24,6 +34,7 @@ export class TelegramDB {
   private prefix: string;
   private batchDelay: number;
   private maxRetries: number;
+  private indexFilePath: string;
   private initialized: boolean = false;
   private messageIndex: Map<string, number> = new Map();
   private documentCache: Map<string, Document> = new Map();
@@ -35,6 +46,7 @@ export class TelegramDB {
     this.prefix = config.messagePrefix || 'TDB:';
     this.batchDelay = config.batchDelay || 100;
     this.maxRetries = config.maxRetries || 3;
+    this.indexFilePath = config.indexFilePath ?? `.tg-db-index-${String(config.chatId).replace(/[^a-zA-Z0-9-]/g, '_')}.json`;
   }
 
   /** Initialize database connection. Must be called before use. */
@@ -402,12 +414,29 @@ export class TelegramDB {
   }
 
   private async loadMessageIndex(): Promise<void> {
+    this.messageIndex.clear();
+    this.documentCache.clear();
+
     try {
-      this.messageIndex.clear();
-      this.documentCache.clear();
+      if (existsSync(this.indexFilePath)) {
+        const data = await readFile(this.indexFilePath, 'utf-8');
+        const index: IndexFile = JSON.parse(data);
+        if (index.messageIndex && Array.isArray(index.messageIndex)) {
+          this.messageIndex = new Map(index.messageIndex);
+        }
+        if (index.documents && Array.isArray(index.documents)) {
+          index.documents.forEach((doc: Document) => {
+            if (doc && doc._id) {
+              this.documentCache.set(doc._id, doc);
+            }
+          });
+        }
+        if (index.indexMessageId != null) {
+          this.indexMessageId = index.indexMessageId;
+        }
+      }
     } catch {
-      this.messageIndex.clear();
-      this.documentCache.clear();
+      // Corrupt or missing file - start fresh
     }
   }
 
@@ -420,9 +449,26 @@ export class TelegramDB {
         documents: Array.from(this.documentCache.values()),
         updatedAt: Date.now(),
       };
-      
+
+      const indexFile: IndexFile = {
+        messageIndex: indexData.messageIndex,
+        documents: indexData.documents,
+        indexMessageId: this.indexMessageId,
+        updatedAt: indexData.updatedAt,
+      };
+
+      try {
+        const dir = dirname(this.indexFilePath);
+        if (dir !== '.' && !existsSync(dir)) {
+          await mkdir(dir, { recursive: true });
+        }
+        await writeFile(this.indexFilePath, JSON.stringify(indexFile, null, 0), 'utf-8');
+      } catch (err) {
+        console.warn('Failed to save index file:', err);
+      }
+
       const indexMessage = encodeDocument(indexData as Document, `${this.prefix}INDEX:`);
-      
+
       if (this.indexMessageId) {
         try {
           await this.bot.telegram.deleteMessage(this.chatId, this.indexMessageId);
@@ -430,15 +476,19 @@ export class TelegramDB {
           // Ignore errors
         }
       }
-      
+
       if (this.messageIndex.size > 0) {
         try {
           const sentMessage = await this.bot.telegram.sendMessage(this.chatId, indexMessage) as any;
           this.indexMessageId = (sentMessage as any).message_id;
         } catch {
-          // Fail silently if message too long
+          this.indexMessageId = null;
         }
+      } else {
+        this.indexMessageId = null;
       }
+      indexFile.indexMessageId = this.indexMessageId;
+      await writeFile(this.indexFilePath, JSON.stringify(indexFile, null, 0), 'utf-8');
     } catch (error) {
       console.warn('Failed to save message index:', error);
     }
