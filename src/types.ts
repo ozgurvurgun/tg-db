@@ -4,6 +4,8 @@ export interface TelegramDBConfig {
   messagePrefix?: string;
   batchDelay?: number;
   maxRetries?: number;
+  /** Path to persist index across restarts. Default: .tg-db-index-{chatId}.json in cwd */
+  indexFilePath?: string;
 }
 
 export interface Document {
