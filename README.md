@@ -81,12 +81,24 @@ Creates the database instance.
 
 **Parameters:**
 
-- `botToken` (string, required): Telegram bot token
-- `chatId` (string | number, required): Chat ID where data will be stored
-- `messagePrefix` (string, optional): Message prefix (default: "TDB:")
-- `batchDelay` (number, optional): Delay between batch operations in ms (default: 100)
-- `maxRetries` (number, optional): Maximum retry count (default: 3)
-- `indexFilePath` (string, optional): Path to persist index across restarts. Default: `.tg-db-index-{chatId}.json` in current directory
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `botToken` | string | Yes | Telegram bot token from [@BotFather](https://t.me/botfather) |
+| `chatId` | string \| number | Yes | Chat ID where data will be stored (the chat is the database) |
+| `messagePrefix` | string | No | Prefix for database messages in the chat (default: `"TDB:"`) |
+| `batchDelay` | number | No | Delay in ms between operations in `insertMany` (default: 100). Helps avoid Telegram rate limits. |
+| `maxRetries` | number | No | Max retries for failed Telegram API calls (default: 3) |
+| `indexFilePath` | string | No | Path to persist index across restarts. Default: `.tg-db-index-{chatId}.json` in current working directory. Use absolute path if you run from different directories. |
+
+Example for fixed path:
+```typescript
+import path from 'path';
+const db = new TelegramDB({
+  botToken: '...',
+  chatId: '...',
+  indexFilePath: path.join(__dirname, '.tg-db-index.json')
+});
+```
 
 ### Methods
 
