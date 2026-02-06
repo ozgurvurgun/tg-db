@@ -86,6 +86,7 @@ Creates the database instance.
 - `messagePrefix` (string, optional): Message prefix (default: "TDB:")
 - `batchDelay` (number, optional): Delay between batch operations in ms (default: 100)
 - `maxRetries` (number, optional): Maximum retry count (default: 3)
+- `indexFilePath` (string, optional): Path to persist index across restarts. Default: `.tg-db-index-{chatId}.json` in current directory
 
 ### Methods
 
@@ -510,7 +511,7 @@ const allOrders = await orders.find();
 
 1. **Telegram API Limits**: The Telegram API has rate limits. Use batch delay for heavy operations.
 2. **Message Size**: Telegram messages are limited to 4096 characters. Large documents may need to be split.
-3. **Message History**: The Telegram Bot API cannot fetch old messages directly. A message index is used instead.
+3. **Message History**: The Telegram Bot API cannot fetch old messages. The index is persisted to a local file (default: `.tg-db-index-{chatId}.json`) so data survives app restarts.
 4. **Bot Permissions**: The bot needs permission to delete messages for delete operations.
 
 ## Security
