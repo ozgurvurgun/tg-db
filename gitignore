@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.tg-db-index*.json
 *.log
 .env
 .DS_Store
